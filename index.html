@@ -21,27 +21,47 @@
     </div>
 
     <script>
-        async function checkDuration() {
-            const url = document.getElementById('urlInput').value;
-            const resDiv = document.getElementById('result');
-            if (!url) return alert("URLを入力してください");
+async function checkDuration() {
+    const url = document.getElementById('urlInput').value;
+    const resDiv = document.getElementById('result');
+    const videoWrapper = document.getElementById('video-wrapper'); // 動画表示エリア
 
-            resDiv.innerText = "解析中...";
+    if (!url) return alert("URLを入力してください");
 
-            try {
-                // VercelのAPIを叩く
-                const response = await fetch(`/api/get-duration?url=${encodeURIComponent(url)}`);
-                const data = await response.json();
+    resDiv.innerText = "解析中...";
 
-                if (data.duration) {
-                    resDiv.innerText = `再生時間: ${data.duration} 秒`;
-                } else {
-                    resDiv.innerText = "取得失敗 (動画が見つかりません)";
-                }
-            } catch (err) {
-                resDiv.innerText = "エラー: サーバーに接続できませんでした";
+    try {
+        // 1. バックエンドAPIから再生時間を取得
+        const response = await fetch(`/api/get-duration?url=${encodeURIComponent(url)}`);
+        const data = await response.json();
+
+        if (data.duration) {
+            resDiv.innerText = `再生時間: ${data.duration} 秒`;
+            
+            // 2. 動画（iframe）を表示させるための処理
+            videoWrapper.innerHTML = ''; // 一旦クリア
+            const blockquote = document.createElement('blockquote');
+            blockquote.className = 'tiktok-embed';
+            blockquote.cite = url;
+            // URLからIDを抽出してセット
+            const videoId = url.match(/\/video\/(\d+)/)?.[1];
+            blockquote.setAttribute('data-video-id', videoId);
+            
+            const section = document.createElement('section');
+            blockquote.appendChild(section);
+            videoWrapper.appendChild(blockquote);
+
+            // TikTokのスクリプトに再スキャンを命じる
+            if (window.tiktokEmbed) {
+                window.tiktokEmbed.lib.render(blockquote);
             }
+        } else {
+            resDiv.innerText = "取得失敗 (動画が見つかりません)";
         }
+    } catch (err) {
+        resDiv.innerText = "エラーが発生しました";
+    }
+}
     </script>
 </body>
 </html>
