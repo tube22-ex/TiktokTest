@@ -2,98 +2,46 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TikTok Duration Checker</title>
+    <title>TikTok Duration Checker Pro</title>
     <style>
-        body { font-family: 'Helvetica Neue', sans-serif; display: flex; flex-direction: column; align-items: center; padding: 40px; background-color: #f8f8f8; }
-        .controls { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 30px; width: 100%; max-width: 500px; text-align: center; }
-        input { width: 80%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; }
-        button { background-color: #ff0050; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        button:hover { background-color: #d60046; }
-        #video-wrapper { min-height: 600px; width: 100%; display: flex; justify-content: center; }
-        .result-badge { font-size: 1.5rem; margin-top: 20px; color: #333; background: #eee; padding: 10px 20px; border-radius: 30px; }
-        .note { font-size: 0.8rem; color: #666; margin-top: 10px; max-width: 400px; }
+        body { font-family: sans-serif; text-align: center; padding: 50px; background: #fafafa; }
+        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); display: inline-block; }
+        input { width: 300px; padding: 12px; border: 1px solid #ddd; border-radius: 8px; }
+        button { padding: 12px 24px; background: #fe2c55; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        #result { margin-top: 20px; font-size: 1.5rem; color: #fe2c55; }
     </style>
 </head>
 <body>
 
-    <div class="controls">
-        <h2>TikTok 動画チェンジャー</h2>
-        <input type="text" id="video-url" placeholder="TikTokのURLを入力 (例: https://www.tiktok.com/@tiktok/video/...)">
-        <br>
-        <button onclick="changeVideo()">動画を更新して取得</button>
+    <div class="card">
+        <h2>TikTok再生時間 瞬時取得</h2>
+        <input type="text" id="urlInput" placeholder="TikTokのURLをペースト">
+        <button onclick="checkDuration()">取得実行</button>
+        <div id="result">結果がここに表示されます</div>
     </div>
-
-    <div id="video-wrapper">
-        <blockquote id="tiktok-block" class="tiktok-embed" cite="https://www.tiktok.com/@tiktok/video/7106594312292453675" data-video-id="7106594312292453675">
-            <section></section>
-        </blockquote>
-    </div>
-
-    <div class="result-badge">
-        再生時間: <span id="duration-display">待機中...</span>
-    </div>
-
-    <p class="note">※ブラウザのセキュリティ制限により、iframe内のデータ取得には公式APIの応答が必要です。動画再生を開始すると取得できる場合があります。</p>
-
-    <script async src="https://www.tiktok.com/embed.js"></script>
 
     <script>
-        function changeVideo() {
-            const url = document.getElementById('video-url').value;
+        async function checkDuration() {
+            const url = document.getElementById('urlInput').value;
+            const resDiv = document.getElementById('result');
             if (!url) return alert("URLを入力してください");
 
-            // URLからVideo IDを抽出 (簡易判定)
-            const match = url.match(/\/video\/(\d+)/);
-            if (!match) return alert("有効なTikTok動画URLを入力してください");
-            
-            const videoId = match[1];
-            const wrapper = document.getElementById('video-wrapper');
-            document.getElementById('duration-display').innerText = "取得中...";
+            resDiv.innerText = "解析中...";
 
-            // 既存のiframeを削除して新しいblockquoteを作成
-            wrapper.innerHTML = '';
-            const newBlock = document.createElement('blockquote');
-            newBlock.className = 'tiktok-embed';
-            newBlock.cite = url;
-            newBlock.setAttribute('data-video-id', videoId);
-            newBlock.style.maxWidth = '605px';
-            newBlock.style.minWidth = '325px';
-            
-            const section = document.createElement('section');
-            newBlock.appendChild(section);
-            wrapper.appendChild(newBlock);
+            try {
+                // VercelのAPIを叩く
+                const response = await fetch(`/api/get-duration?url=${encodeURIComponent(url)}`);
+                const data = await response.json();
 
-            // TikTokの埋め込みスクリプトを再ロードして描画させる
-            if (window.tiktokEmbed) {
-                window.tiktokEmbed.lib.render(newBlock);
-            } else {
-                const script = document.createElement('script');
-                script.src = "https://www.tiktok.com/embed.js";
-                document.body.appendChild(script);
+                if (data.duration) {
+                    resDiv.innerText = `再生時間: ${data.duration} 秒`;
+                } else {
+                    resDiv.innerText = "取得失敗 (動画が見つかりません)";
+                }
+            } catch (err) {
+                resDiv.innerText = "エラー: サーバーに接続できませんでした";
             }
         }
-
-        // iframeからのメッセージ（再生時間データ等）を監視
-        window.addEventListener('message', function(event) {
-            // 安全のためオリジンを確認
-            if (event.origin.includes('tiktok.com')) {
-                try {
-                    const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-                    
-                    // プレイヤーの準備完了や更新イベント時にdurationが含まれるか確認
-                    // 注意: TikTokの仕様により、再生開始時にしかデータが飛ばない場合があります
-                    if (data.type === 'onPlayerReady' || data.data?.duration) {
-                        const duration = data.data?.duration || data.duration;
-                        if (duration) {
-                            document.getElementById('duration-display').innerText = duration + " 秒";
-                        }
-                    }
-                } catch (e) {
-                    // JSONパースエラー等は無視
-                }
-            }
-        });
     </script>
 </body>
 </html>
